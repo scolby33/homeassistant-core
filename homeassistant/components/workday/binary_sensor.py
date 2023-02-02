@@ -60,7 +60,7 @@ def valid_country(value: Any) -> str:
 
 PLATFORM_SCHEMA = PARENT_PLATFORM_SCHEMA.extend(
     {
-        vol.Required(CONF_COUNTRY): valid_country,
+        vol.Optional(CONF_COUNTRY): valid_country,
         vol.Optional(CONF_EXCLUDES, default=DEFAULT_EXCLUDES): vol.All(
             cv.ensure_list, [vol.In(ALLOWED_DAYS)]
         ),
@@ -92,7 +92,7 @@ def setup_platform(
 
     add_holidays: list[DateLike] = config[CONF_ADD_HOLIDAYS]
     remove_holidays: list[str] = config[CONF_REMOVE_HOLIDAYS]
-    country: str = config[CONF_COUNTRY]
+    country: str | None = config.get(CONF_COUNTRY)
     days_offset: int = config[CONF_OFFSET]
     excludes: list[str] = config[CONF_EXCLUDES]
     province: str | None = config.get(CONF_PROVINCE)
@@ -100,9 +100,16 @@ def setup_platform(
     workdays: list[str] = config[CONF_WORKDAYS]
 
     year: int = (get_date(dt.now()) + timedelta(days=days_offset)).year
-    obj_holidays: HolidayBase = getattr(holidays, country)(years=year)
+    if country:
+        obj_holidays: HolidayBase = getattr(holidays, country)(years=year)
+    else:
+        obj_holidays = holidays.HolidayBase(years=year)
 
     if province:
+        if not country:
+            _LOGGER.error("Cannot use a subdivision/province without a country")
+            return
+
         if (
             hasattr(obj_holidays, "subdivisions")
             and province in obj_holidays.subdivisions
